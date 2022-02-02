@@ -20,10 +20,13 @@ import time
 from collections import namedtuple
 from datetime import datetime
 
-from .config import setup_environment
-from . import fourCC
-from . import gpmf
-from . import gpshelper
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
+from config import setup_environment
+import fourCC
+import gpmf
+import gpshelper
 
 
 def BuildGPSPoints(data, skip=False):
@@ -156,6 +159,12 @@ def main():
     if len(points) == 0:
         print("Can't create file. No GPS info in %s. Exitting" % args.file)
         sys.exit(0)
+
+    my_csv = gpshelper.generate_CSV(points)
+    with open("%s.csv" % args.outputfile , "w+") as fd:
+        fd.write(my_csv)
+
+    return
 
     kml = gpshelper.generate_KML(points)
     with open("%s.kml" % args.outputfile , "w+") as fd:

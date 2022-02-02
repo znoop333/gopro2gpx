@@ -7,9 +7,10 @@
 #
 
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import os
+
 
 class GPSPoint:
     def __init__(self, latitude=0.0, longitude=0.0, elevation=0.0, time=datetime.fromtimestamp(time.time()), speed=0.0):
@@ -171,3 +172,18 @@ def generate_KML(gps_points):
     coords = os.linesep.join(lines)
     kml = kml_template % coords
     return(kml)
+
+
+def generate_CSV(gps_points):
+    """
+    simple CSV output
+    """
+
+    lines = ["Time,elapsed,longitude,latitude,elevation,speed"]
+    t0 = gps_points[0].time
+    for p in gps_points:
+        dt = p.time - t0
+        s = "%s,%.3f,%s,%s,%s,%s" % (UTCTime(p.time), dt / timedelta(milliseconds=1) / 1000.0 , p.longitude, p.latitude, p.elevation, p.speed)
+        lines.append(s)
+
+    return "\n".join(lines)
