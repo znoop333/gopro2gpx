@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timedelta
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -27,6 +27,7 @@ from config import setup_environment
 import fourCC
 import gpmf
 import gpshelper
+
 
 
 def BuildGPSPoints(data, skip=False):
@@ -59,6 +60,7 @@ def BuildGPSPoints(data, skip=False):
             SCAL = d.data
         elif d.fourCC == 'GPSU':
             GPSU = d.data
+            time_offset = timedelta(milliseconds=0)
         elif d.fourCC == 'GPSF':
             if d.data != GPSFIX:
                 print("GPSFIX change to %s [%s]" % (d.data,fourCC.LabelGPSF.xlate[d.data]))
@@ -81,10 +83,11 @@ def BuildGPSPoints(data, skip=False):
                         continue
 
                 retdata = [ float(x) / float(y) for x,y in zip( item._asdict().values() ,list(SCAL) ) ]
-                
+
+                time_offset = time_offset + timedelta(milliseconds=1000.0/18)
 
                 gpsdata = fourCC.GPSData._make(retdata)
-                p = gpshelper.GPSPoint(gpsdata.lat, gpsdata.lon, gpsdata.alt, GPSU, gpsdata.speed)
+                p = gpshelper.GPSPoint(gpsdata.lat, gpsdata.lon, gpsdata.alt, GPSU + time_offset, gpsdata.speed)
                 points.append(p)
                 stats['ok'] += 1
 
