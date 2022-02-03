@@ -37,7 +37,7 @@ def UTCTime(timedata):
     # should be formatted to 2014-05-30T20:11:17Z
     #
     
-    return timedata.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return timedata.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 def generate_GPX(points, trk_name="exercise"):
 

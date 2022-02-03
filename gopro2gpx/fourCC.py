@@ -11,6 +11,7 @@ import struct
 import time
 import collections
 import copy
+from datetime import datetime
 
 maptype = { 'c': 'c',
 			'L': 'L',
@@ -78,7 +79,7 @@ class Label_TypeUTimeStamp(LabelBase):
 		s = klvdata.rawdata.decode('utf-8', errors='replace')
 		# 'yymmddhhmmss.sss'
 		fmt = '%y%m%d%H%M%S.%f'
-		return time.strptime(s, fmt)
+		return datetime.strptime(s, fmt)
 
 class LabelDVID(LabelBase):
 	def __init__(self):
