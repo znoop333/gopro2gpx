@@ -71,6 +71,10 @@ class KLVData:
         if num_bytes == 0:
             # empty package.
             rawdata = None
+        elif num_bytes+offset+8 > len(data):
+            rawdata = None
+            self.type = -1  # partial buffer read. try again later
+            self.padded_length = 0  # don't advance the offset
         else:
             fmt = '>' + str(num_bytes) + 's'
             s  = struct.Struct(fmt)
