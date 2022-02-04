@@ -121,9 +121,18 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
                     continue
 
                 if last_frame_with_metadata >= 0:
-                    frame_info['gps_time'][last_frame_with_metadata:frame_count+1] = np.datetime64(points[0].time)
+                    frame_info['gps_time'][last_frame_with_metadata:frame_count + 1] = np.datetime64(points[0].time)
                 else:
-                    frame_info['gps_time'][:frame_count+1] = np.datetime64(points[0].time)
+                    gps_count = len(points)
+                    times = np.array([np.datetime64(p.time) for p in points], dtype='datetime64[us]')
+                    dTime = (times-times[0]).astype(float)
+                    lat = np.array([p.latitude for p in points])
+                    lon = np.array([p.longitude for p in points])
+                    speeds = np.array([p.speed for p in points])
+                    interp_times = np.interp(np.arange(frame_count), np.arange(gps_count), dTime)
+                    delta_times = list(map(lambda x: times[0]+timedelta(microseconds=x), interp_times))
+                    #frame_info['gps_time'][:frame_count + 1] = np.datetime64(points[0].time)
+                    frame_info['gps_time'][:frame_count + 1] = np.datetime64(times[0]+interp_times.astype('datetime64[us]'))
 
                 last_frame_with_metadata = frame_count
 
@@ -134,9 +143,13 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
                 except Exception as err:
                     logger.error(f"Error decoding packet as metadata - exception", exc_info=True)
 
+    # truncate unnecessary extra samples
+    for k in frame_info:
+        frame_info[k] = frame_info[k][:frame_count]
+
     savemat("metadata.mat", frame_info)
 
 
 if __name__ == "__main__":
-    #read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"), 5000)
-    read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"))
+    read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"), 500)
+    # read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"))
