@@ -7,6 +7,7 @@ import numpy as np
 from scipy.io import savemat
 from datetime import datetime, timedelta
 from gopro2gpx import BuildGPSPoints
+from np_datetime_conv import interp_time_array
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def parseStream(data_raw):
 
 def read_video(source: Path, dest: Path, max_frames: int = None):
     frame_count = 0
-    last_frame_with_metadata = -1
+    last_frame = 0
     unread_bytes = bytes()
 
     with av.open(str(source)) as container:
@@ -120,28 +121,29 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
                 if not len(points):
                     continue
 
-                if last_frame_with_metadata >= 0:
-                    frame_info['gps_time'][last_frame_with_metadata:frame_count + 1] = np.datetime64(points[0].time)
-                else:
-                    gps_count = len(points)
+                gps_count = len(points)
+                if gps_count > 0:
                     times = np.array([np.datetime64(p.time) for p in points], dtype='datetime64[us]')
-                    dTime = (times-times[0]).astype(float)
                     lat = np.array([p.latitude for p in points])
                     lon = np.array([p.longitude for p in points])
                     speeds = np.array([p.speed for p in points])
-                    interp_times = np.interp(np.arange(frame_count), np.arange(gps_count), dTime)
-                    delta_times = list(map(lambda x: times[0]+timedelta(microseconds=x), interp_times))
-                    #frame_info['gps_time'][:frame_count + 1] = np.datetime64(points[0].time)
-                    frame_info['gps_time'][:frame_count + 1] = np.datetime64(times[0]+interp_times.astype('datetime64[us]'))
+                    elevation = np.array([p.elevation for p in points])
 
-                last_frame_with_metadata = frame_count
+                    # assume that the video runs at 29.97 Hz and the GPS runs at 18 Hz.
+                    # the easiest way to line these up is with simple interpolation.
+                    x = np.linspace(0, 1, frame_count-last_frame)
+                    xp = np.linspace(0, 1, gps_count)
 
-                try:
+                    frame_info['gps_time'][last_frame:frame_count] = interp_time_array(x, xp, times)
 
-                    1
+                    # interpolating latitude and longitude independently isn't really the right thing to do,
+                    # but let's see if it's adequate here
+                    frame_info['latitude'][last_frame:frame_count] = np.interp(x, xp, lat)
+                    frame_info['longitude'][last_frame:frame_count] = np.interp(x, xp, lon)
+                    frame_info['speed'][last_frame:frame_count] = np.interp(x, xp, speeds)
+                    frame_info['elevation'][last_frame:frame_count] = np.interp(x, xp, elevation)
 
-                except Exception as err:
-                    logger.error(f"Error decoding packet as metadata - exception", exc_info=True)
+                last_frame = frame_count
 
     # truncate unnecessary extra samples
     for k in frame_info:
@@ -151,5 +153,5 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
 
 
 if __name__ == "__main__":
-    read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"), 500)
-    # read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"))
+    # read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"), 500)
+    read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"))
