@@ -8,6 +8,10 @@ from scipy.io import savemat
 from datetime import datetime, timedelta
 from gopro2gpx import BuildGPSPoints
 from np_datetime_conv import interp_time_array
+import csv
+import math
+from av.data.stream import DataStream
+from av.video.stream import VideoStream
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +96,7 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
             we should avoid decoding the packets if we don't really need to process them
             """
 
-            if isinstance(packet.stream, av.video.stream.VideoStream):
+            if isinstance(packet.stream, VideoStream):
                 frames = packet.decode()
                 if frames is not None and len(frames) > 0:
                     for frame in frames:
@@ -119,7 +123,7 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
                         """
                         frame_count += 1
 
-            elif isinstance(packet.stream, av.data.stream.DataStream):
+            elif isinstance(packet.stream, DataStream):
                 # logger.debug(f"No frames found in packet {packet_index}, processing as metadata")
 
                 # there are multiple data streams, but we only care about the metadata stream with the GPMF data
@@ -143,7 +147,7 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
 
                     # assume that the video runs at 29.97 Hz and the GPS runs at 18 Hz.
                     # the easiest way to line these up is with simple interpolation.
-                    x = np.linspace(0, 1, frame_count-last_frame)
+                    x = np.linspace(0, 1, frame_count - last_frame)
                     xp = np.linspace(0, 1, gps_count)
 
                     frame_info['gps_time'][last_frame:frame_count] = interp_time_array(x, xp, times)
@@ -162,9 +166,55 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
         for k in frame_info:
             frame_info[k] = frame_info[k][:frame_count]
 
+    # save in Matlab format
     savemat("metadata.mat", frame_info)
+
+    # save the full metadata as a CSV just in case somebody wants that for another (non-Matlab program)
+    with open('metadata_full.csv', 'w', newline='') as csvfile:
+        fieldnames = frame_info.keys()
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, dialect="excel")
+        writer.writeheader()
+
+        # from dict of lists to list of dicts
+        rows = [{k: v[ii] for k, v in frame_info.items()} for ii in range(frame_count)]
+        for ii in range(frame_count):
+            writer.writerow(rows[ii])
+
+    """
+write the CSV for PIX4D to use (Image geolocation file)
+
+from PIX4Dmapper Input files on https://support.pix4d.com/hc/en-us/articles/202558539-Input-files#label2
+
+WGS84 geographic coordinates
+imagename,latitude [decimal degrees],longitude [decimal degrees],altitude [meter]
+
+For geographic WGS84 (latitude, longitude, altitude) image geolocation coordinates. The file is a .csv, .txt, or .dat 
+extension file. It contains four columns per line, and uses a comma to separate the characters.
+
+Example:
+IMG_3165.JPG,46.2345612,6.5611445,539.931234
+IMG_3166.JPG,46.2323423,6.5623423,529.823423
+    """
+    with open('metadata_pix4d.csv', 'w', newline='') as csvfile:
+        fieldnames = ['imagename', 'latitude', 'longitude', 'altitude']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quoting=csv.QUOTE_NONE)
+        writer.writeheader()
+
+        # determine how many prefix zeros will be required to keep these files in order
+        n_digits_required = math.ceil(math.log10(frame_count))
+
+        for ii in range(frame_count):
+            index = int(frame_info["index"][ii] + 1)  # does PIX4D count frames from 0 or 1? I guess 1
+            index_str = str(index).zfill(n_digits_required)
+            writer.writerow(
+                {'imagename': f'IMG_{index_str}.JPG',
+                 'latitude': frame_info['latitude'][ii],
+                 'longitude': frame_info['longitude'][ii],
+                 'altitude': frame_info['elevation'][ii]
+                 }
+            )
 
 
 if __name__ == "__main__":
-    # read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"), 500)
+    #read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"), 50)
     read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"))
