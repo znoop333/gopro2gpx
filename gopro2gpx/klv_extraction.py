@@ -54,7 +54,8 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
     unread_bytes = bytes()
 
     with av.open(str(source)) as container:
-        n_frames = 16000  # container.streams.video[0].frames + 10
+        n_frames = container.streams.video[0].frames
+        print(f'Frame count: {n_frames}')
         frame_info = {
             'index': np.zeros(n_frames),
             'gps_time': np.zeros(n_frames, dtype='datetime64[us]'),
@@ -76,45 +77,56 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
 
         for packet_index, packet in enumerate(container.demux()):
 
+            if packet.dts is None:
+                # We need to skip the "flushing" packets that `demux` generates
+                continue
+
             if max_frames is not None and frame_count >= max_frames:
                 break
 
-            # packet.stream.codec_context
-            packet_data = packet.to_bytes()
+            """
+            we have to handle the different streams separately:
+                we need to count the video frames in the video stream
+                we don't care about the audio stream(s)
+                we want to parse the GPMF metadata stream but not the other data streams
+            we should avoid decoding the packets if we don't really need to process them
+            """
 
-            frames = packet.decode()
-            if frames is not None and len(frames) > 0:
-                for frame in frames:
-                    last_frame_pts = frame.pts
-                    frame_info['index'][frame_count] = frame.index
-                    frame_info['presentation_time'][frame_count] = frame.time
+            if isinstance(packet.stream, av.video.stream.VideoStream):
+                frames = packet.decode()
+                if frames is not None and len(frames) > 0:
+                    for frame in frames:
+                        last_frame_pts = frame.pts
+                        frame_info['index'][frame_count] = frame.index
+                        frame_info['presentation_time'][frame_count] = frame.time
 
-                    """
-                    image_data = frame.to_image()
-                    image_size = image_data.size
-                    if image_size[0] != 320:
-                        frame_meta = {}
-                        frame_meta["frame_timestamp_int"] = frame.pts
-                        frame_meta["frame_time"] = frame.time
-                        frame_meta["frame_index"] = frame.index
-                        frame_meta["packet_index"] = packet_index
-                        frame_meta["is_corrupt"] = frame.is_corrupt
-                        frame_meta["key_frame"] = frame.key_frame
-                        frame_meta["packet_size"] = packet.size
-                        frame_meta["num_frames_in_packet"] = len(frames)
-                        frame_meta["packet_stream_average_rate"] = packet.stream.average_rate
-                        frame_meta["frame_image_width"] = image_size[0]
-                        frame_meta["frame_image_height"] = image_size[1]
-                    """
-                    frame_count += 1
+                        """
+                        image_data = frame.to_image()
+                        image_size = image_data.size
+                        if image_size[0] != 320:
+                            frame_meta = {}
+                            frame_meta["frame_timestamp_int"] = frame.pts
+                            frame_meta["frame_time"] = frame.time
+                            frame_meta["frame_index"] = frame.index
+                            frame_meta["packet_index"] = packet_index
+                            frame_meta["is_corrupt"] = frame.is_corrupt
+                            frame_meta["key_frame"] = frame.key_frame
+                            frame_meta["packet_size"] = packet.size
+                            frame_meta["num_frames_in_packet"] = len(frames)
+                            frame_meta["packet_stream_average_rate"] = packet.stream.average_rate
+                            frame_meta["frame_image_width"] = image_size[0]
+                            frame_meta["frame_image_height"] = image_size[1]
+                        """
+                        frame_count += 1
 
-            else:
+            elif isinstance(packet.stream, av.data.stream.DataStream):
                 # logger.debug(f"No frames found in packet {packet_index}, processing as metadata")
 
-                # if packet.stream.id != gpmf_ix:
+                # there are multiple data streams, but we only care about the metadata stream with the GPMF data
                 if 'GoPro MET' not in packet.stream.metadata['handler_name']:
                     continue
 
+                packet_data = packet.to_bytes()
                 klv, unread_bytes = parseStream(unread_bytes + packet_data)
                 points = BuildGPSPoints(klv)
 
@@ -145,9 +157,10 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
 
                 last_frame = frame_count
 
-    # truncate unnecessary extra samples
-    for k in frame_info:
-        frame_info[k] = frame_info[k][:frame_count]
+    # truncate unnecessary extra samples: corrupted video frames could reduce the total number of frames we could save
+    if frame_count < n_frames:
+        for k in frame_info:
+            frame_info[k] = frame_info[k][:frame_count]
 
     savemat("metadata.mat", frame_info)
 
