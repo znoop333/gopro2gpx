@@ -34,6 +34,7 @@ def map_type(type):
 
 
 XYZData = collections.namedtuple('XYZData',"y x z")	
+QUATData = collections.namedtuple('QUATData',"qw qx qy qz")
 UNITData = collections.namedtuple("UNITData","lat lon alt speed speed3d")
 KARMAUNIT10Data = collections.namedtuple("KARMAUNIT10Data","A  Ah J degC V1 V2 V3 V4 s p1")
 KARMAUNIT15Data = collections.namedtuple("KARMAUNIT15Data","A  Ah J degC V1 V2 V3 V4 s p1 e1 e2 e3 e4 p2")
@@ -133,6 +134,26 @@ class LabelXYZData(LabelBase):
 		s = struct.Struct('>' + stype*3)
 		data = XYZData._make(s.unpack_from(klvdata.rawdata))
 		return(data)
+
+
+class LabelQuatData(LabelBase):
+	def __init__(self):
+		LabelBase.__init__(self)
+
+	def Build(self, klvdata):
+		if klvdata.size != 8:
+			raise Exception("Invalid length for IORI/CORI packet")
+
+		# we need to process the SCAL value to measure properly the DATA
+		stype = map_type(klvdata.type)
+		s = struct.Struct('>' + stype * 4)
+		data = []
+		for r in range(klvdata.repeat):
+			data_item = QUATData._make(s.unpack_from(klvdata.rawdata[r * 2 * 4:(r + 1) * 2 * 4]))
+			data.append(data_item)
+
+		return data
+
 
 class LabelACCL(LabelXYZData):
 	"""
@@ -286,7 +307,31 @@ class LabelTMPC(LabelBase):
 	def __init__(self):
 		LabelBase.__init__(self)
 
-skip_labels = [ 
+class LabelCORI(LabelQuatData):
+	"""
+	Camera ORIentation: Quaternions for the camera orientation since capture start
+	Data order qw,qx,qy,qz
+	"""
+
+	def __init__(self):
+		LabelQuatData.__init__(self)
+
+class LabelIORI(LabelQuatData):
+	"""
+	Image ORIentation: Quaternions for the image orientation relative to the camera body
+	Data order qw,qx,qy,qz
+
+warning from a researcher: "The quaternion function is input as a column vector. Since image orientation is used, it seems that the
+mirror image is rotated. Therefore, the sign of the coefficient of the complex number i, j, k was inverted and restored.
+I swapped the column vectors while checking the actual rotation. In my case, the following settings worked fine.
+quat = quaternion (qi0, -qi3, -qi2, -qi1)"
+	"""
+
+	def __init__(self):
+		LabelQuatData.__init__(self)
+
+
+skip_labels = [
 	#"TIMO", "YAVG", "ISOE", "FACE", "SHUT", "WBAL", "WRGB", "UNIF", "FCNM", 
 	#"FWVS", "KBAT", "ATTD",	"GLPI",	"VFRH",	"BPOS",	"ATTR",	"SIMU",	"ESCS",	"SCPR",	"LNED",	"CYTS",	"CSEN" 
 ]
@@ -333,8 +378,8 @@ labels = {
   
 		#gopro8 fix
         "GPSA" : LabelEmpty, ## Unknown GPS data        ## New for Hero8?
-        "IORI" : LabelEmpty, ## Image Orientation       ## New for Hero8?        
-        "CORI" : LabelEmpty, ## Camera Orientation      ## New for Hero8?        
+        "IORI" : LabelIORI, ## Image Orientation       ## New for Hero8?
+        "CORI" : LabelCORI, ## Camera Orientation      ## New for Hero8?
         "GRAV" : LabelEmpty, ## Gravity Vector          ## New for Hero8?            
         "WNDM" : LabelEmpty, ## Window Processing       ## New for Hero8?         
         "MWET" : LabelEmpty, ## Microphone Wet          ## New for Hero8?   
@@ -381,8 +426,8 @@ labels = {
 		"VPTS" : LabelEmpty,
 
 		# gopro MAX  fix
-		"CORI": LabelEmpty,  # Camera ORIentation
-		"IORI": LabelEmpty,  # Image ORIentation
+		"CORI": LabelCORI,  # Camera ORIentation
+		"IORI": LabelIORI,  # Image ORIentation
 		"GRAV": LabelEmpty,  # GRAvity Vector
 		"DISP": LabelEmpty  # Disparity track (360 modes)
 }
