@@ -6,7 +6,7 @@ from klvdata import KLVData
 import numpy as np
 from scipy.io import savemat
 from datetime import datetime, timedelta
-from gopro2gpx import BuildGPSPoints
+from gopro2gpx import BuildGPSPoints, BuildOrientations
 from np_datetime_conv import interp_time_array
 import csv
 import math
@@ -35,7 +35,8 @@ def parseStream(data_raw):
 
         if not klv.skip():
             klvlist.append(klv)
-            # print(klv)
+            #if klv.fourCC=="STNM":
+            print(klv)
         else:
             if klv:
                 print("Warning, skipping klv", klv)
@@ -67,7 +68,15 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
             'latitude': np.zeros(n_frames),
             'longitude': np.zeros(n_frames),
             'elevation': np.zeros(n_frames),
-            'speed': np.zeros(n_frames)
+            'speed': np.zeros(n_frames),
+            'c_qw': np.zeros(n_frames),
+            'c_qx': np.zeros(n_frames),
+            'c_qy': np.zeros(n_frames),
+            'c_qz': np.zeros(n_frames),
+            'i_qw': np.zeros(n_frames),
+            'i_qx': np.zeros(n_frames),
+            'i_qy': np.zeros(n_frames),
+            'i_qz': np.zeros(n_frames)
         }
 
         # find the GPMF data stream
@@ -133,6 +142,7 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
                 packet_data = packet.to_bytes()
                 klv, unread_bytes = parseStream(unread_bytes + packet_data)
                 points = BuildGPSPoints(klv)
+                points_CORI, points_IORI = BuildOrientations(klv)
 
                 if not len(points):
                     continue
@@ -158,6 +168,18 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
                     frame_info['longitude'][last_frame:frame_count] = np.interp(x, xp, lon)
                     frame_info['speed'][last_frame:frame_count] = np.interp(x, xp, speeds)
                     frame_info['elevation'][last_frame:frame_count] = np.interp(x, xp, elevation)
+
+                    if len(points_CORI) > 0:
+                        frame_info['c_qw'][last_frame:frame_count] = [p.qw for p in points_CORI]
+                        frame_info['c_qx'][last_frame:frame_count] = [p.qx for p in points_CORI]
+                        frame_info['c_qy'][last_frame:frame_count] = [p.qy for p in points_CORI]
+                        frame_info['c_qz'][last_frame:frame_count] = [p.qz for p in points_CORI]
+
+                    if len(points_IORI) > 0:
+                        frame_info['i_qw'][last_frame:frame_count] = [p.qw for p in points_IORI]
+                        frame_info['i_qx'][last_frame:frame_count] = [p.qx for p in points_IORI]
+                        frame_info['i_qy'][last_frame:frame_count] = [p.qy for p in points_IORI]
+                        frame_info['i_qz'][last_frame:frame_count] = [p.qz for p in points_IORI]
 
                 last_frame = frame_count
 

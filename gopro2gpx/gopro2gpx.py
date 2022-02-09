@@ -29,7 +29,6 @@ import gpmf
 import gpshelper
 
 
-
 def BuildGPSPoints(data, skip=False):
     """
     Data comes UNSCALED so we have to do: Data / Scale.
@@ -50,12 +49,12 @@ def BuildGPSPoints(data, skip=False):
         'ok': 0,
         'badfix': 0,
         'badfixskip': 0,
-        'empty' : 0
+        'empty': 0
     }
 
-    GPSFIX = 0 # no lock.
+    GPSFIX = 0  # no lock.
     for d in data:
-        
+
         if d.fourCC == 'SCAL':
             SCAL = d.data
         elif d.fourCC == 'GPSU':
@@ -63,7 +62,7 @@ def BuildGPSPoints(data, skip=False):
             time_offset = timedelta(milliseconds=0)
         elif d.fourCC == 'GPSF':
             if d.data != GPSFIX:
-                print("GPSFIX change to %s [%s]" % (d.data,fourCC.LabelGPSF.xlate[d.data]))
+                print("GPSFIX change to %s [%s]" % (d.data, fourCC.LabelGPSF.xlate[d.data]))
             GPSFIX = d.data
         elif d.fourCC == 'GPS5':
             # we have to use the REPEAT value.
@@ -82,9 +81,9 @@ def BuildGPSPoints(data, skip=False):
                         stats['badfixskip'] += 1
                         continue
 
-                retdata = [ float(x) / float(y) for x,y in zip( item._asdict().values() ,list(SCAL) ) ]
+                retdata = [float(x) / float(y) for x, y in zip(item._asdict().values(), list(SCAL))]
 
-                time_offset = time_offset + timedelta(milliseconds=1000.0/18)
+                time_offset = time_offset + timedelta(milliseconds=1000.0 / 18)
 
                 gpsdata = fourCC.GPSData._make(retdata)
                 p = gpshelper.GPSPoint(gpsdata.lat, gpsdata.lon, gpsdata.alt, GPSU + time_offset, gpsdata.speed)
@@ -92,7 +91,7 @@ def BuildGPSPoints(data, skip=False):
                 stats['ok'] += 1
 
         elif d.fourCC == 'SYST':
-            data = [ float(x) / float(y) for x,y in zip( d.data._asdict().values() ,list(SCAL) ) ]
+            data = [float(x) / float(y) for x, y in zip(d.data._asdict().values(), list(SCAL))]
             if data[0] != 0 and data[1] != 0:
                 SYST = fourCC.SYSTData._make(data)
 
@@ -112,19 +111,17 @@ def BuildGPSPoints(data, skip=False):
                     stats['badfixskip'] += 1
                     continue
 
-            data = [ float(x) / float(y) for x,y in zip( d.data._asdict().values() ,list(SCAL) ) ]
+            data = [float(x) / float(y) for x, y in zip(d.data._asdict().values(), list(SCAL))]
             gpsdata = fourCC.KARMAGPSData._make(data)
 
             if SYST.seconds != 0 and SYST.miliseconds != 0:
-                p = gpshelper.GPSPoint(gpsdata.lat, gpsdata.lon, gpsdata.alt, datetime.fromtimestamp(SYST.miliseconds), gpsdata.speed)
+                p = gpshelper.GPSPoint(gpsdata.lat, gpsdata.lon, gpsdata.alt, datetime.fromtimestamp(SYST.miliseconds),
+                                       gpsdata.speed)
                 points.append(p)
                 stats['ok'] += 1
 
-
-
-
     print("-- stats -----------------")
-    total_points =0
+    total_points = 0
     for i in stats.keys():
         total_points += stats[i]
     print("- Ok:              %5d" % stats['ok'])
@@ -132,7 +129,39 @@ def BuildGPSPoints(data, skip=False):
     print("- Empty (No data): %5d" % stats['empty'])
     print("Total points:      %5d" % total_points)
     print("--------------------------")
-    return(points)
+    return (points)
+
+
+def BuildOrientations(data):
+    """
+    Data comes UNSCALED so we have to do: Data / Scale.
+    Do a finite state machine to process the labels.
+    GET
+     - SCAL     Scale value
+     - CORI     Camera ORIentation: Quaternions for the camera orientation since capture start
+     - IORI     Image ORIentation: Quaternions for the image orientation relative to the camera body
+    """
+
+    points_CORI = []
+    points_IORI = []
+    SCAL = 1
+
+    for d in data:
+        if d.fourCC == 'SCAL':
+            SCAL = d.data
+        elif d.fourCC == 'CORI' or d.fourCC == 'IORI':
+            # use the REPEAT value. multiple quaternions may be reported in one packet
+
+            for item in d.data:
+                retdata = [ float(x) / float(SCAL) for x in item._asdict().values() ]
+
+                qdata = fourCC.QUATData._make(retdata)
+                if d.fourCC == 'CORI':
+                    points_CORI.append(qdata)
+                else:
+                    points_IORI.append(qdata)
+
+    return points_CORI, points_IORI
 
 def parseArgs():
     parser = argparse.ArgumentParser()
