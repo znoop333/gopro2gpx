@@ -12,6 +12,7 @@ import csv
 import math
 from av.data.stream import DataStream
 from av.video.stream import VideoStream
+from scipy.spatial.transform import Rotation as R
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,8 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
             'i_qy': np.zeros(n_frames),
             'i_qz': np.zeros(n_frames)
         }
+        cori = []
+        iori = []
 
         # find the GPMF data stream
         gpmf_ix = -1
@@ -143,6 +146,8 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
                 klv, unread_bytes = parseStream(unread_bytes + packet_data)
                 points = BuildGPSPoints(klv)
                 points_CORI, points_IORI = BuildOrientations(klv)
+                cori.extend(points_CORI)
+                iori.extend(points_IORI)
 
                 if not len(points):
                     continue
@@ -187,6 +192,17 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
     if frame_count < n_frames:
         for k in frame_info:
             frame_info[k] = frame_info[k][:frame_count]
+
+    qn_iori = [R.from_quat([p.qw, p.qx, p.qy, p.qz]) for p in iori]
+    qn_cori = [R.from_quat([p.qw, p.qx, p.qy, p.qz]) for p in cori]
+    rel_cori = np.array( [ (qn_cori[ii]*qn_cori[0].inv()).as_euler('yxz', degrees=True) for ii in range(frame_count)])
+    rel_iori = np.array( [ (qn_iori[ii]*qn_iori[0].inv()).as_euler('yxz', degrees=True) for ii in range(frame_count)])
+    frame_info['cam_rel_az'] = rel_cori[:, 0]
+    frame_info['cam_rel_tilt'] = rel_cori[:, 1]
+    frame_info['cam_rel_roll'] = rel_cori[:, 2]
+    frame_info['img_rel_az'] = rel_iori[:, 0]
+    frame_info['img_rel_tilt'] = rel_iori[:, 1]
+    frame_info['img_rel_roll'] = rel_iori[:, 2]
 
     # save in Matlab format
     savemat("metadata.mat", frame_info)
