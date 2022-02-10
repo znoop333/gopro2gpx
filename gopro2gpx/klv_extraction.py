@@ -37,7 +37,7 @@ def parseStream(data_raw):
         if not klv.skip():
             klvlist.append(klv)
             #if klv.fourCC=="STNM":
-            print(klv)
+            #print(klv)
         else:
             if klv:
                 print("Warning, skipping klv", klv)
@@ -193,13 +193,27 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
         for k in frame_info:
             frame_info[k] = frame_info[k][:frame_count]
 
+    # interpret the quaternions
     qn_iori = [R.from_quat([p.qw, p.qx, p.qy, p.qz]) for p in iori]
     qn_cori = [R.from_quat([p.qw, p.qx, p.qy, p.qz]) for p in cori]
-    rel_cori = np.array( [ (qn_cori[ii]*qn_cori[0].inv()).as_euler('yxz', degrees=True) for ii in range(frame_count)])
-    rel_iori = np.array( [ (qn_iori[ii]*qn_iori[0].inv()).as_euler('yxz', degrees=True) for ii in range(frame_count)])
+
+    # IORI is relative to CORI, and I want the net quaternion describing the image pose
+    qn_net = [q_i.inv() * q_c for q_c, q_i in zip(qn_cori, qn_iori)]
+
+    # the initial GoPro pose is set when the device is powered on, and all quaternions are relative to that.
+    # but since I cannot know that initial pose (most GoPros do not have a magnetometer), I'm going to
+    # save the Euler angles relative to that initial pose
+    rel_net_angles = np.array([(qn_net[ii]*qn_net[0].inv()).as_euler('yxz', degrees=True) for ii in range(frame_count)])
+    frame_info['rel_net_az'] = rel_net_angles[:, 0]
+    frame_info['rel_net_tilt'] = rel_net_angles[:, 1]
+    frame_info['rel_net_roll'] = rel_net_angles[:, 2]
+
+    rel_cori = np.array([(qn_cori[ii] * qn_cori[0].inv()).as_euler('yxz', degrees=True) for ii in range(frame_count)])
     frame_info['cam_rel_az'] = rel_cori[:, 0]
     frame_info['cam_rel_tilt'] = rel_cori[:, 1]
     frame_info['cam_rel_roll'] = rel_cori[:, 2]
+
+    rel_iori = np.array([(qn_iori[ii] * qn_iori[0].inv()).as_euler('yxz', degrees=True) for ii in range(frame_count)])
     frame_info['img_rel_az'] = rel_iori[:, 0]
     frame_info['img_rel_tilt'] = rel_iori[:, 1]
     frame_info['img_rel_roll'] = rel_iori[:, 2]
