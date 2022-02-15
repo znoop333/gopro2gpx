@@ -19,6 +19,7 @@ import sys
 import time
 from collections import namedtuple
 from datetime import datetime, timedelta
+import logging
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -39,6 +40,7 @@ def BuildGPSPoints(data, skip=False):
      - GPSU     GPS Time
      - GPS5     GPS Data
     """
+    logger = logging.getLogger(__name__)
 
     points = []
     SCAL = fourCC.XYZData(1.0, 1.0, 1.0)
@@ -62,7 +64,7 @@ def BuildGPSPoints(data, skip=False):
             time_offset = timedelta(milliseconds=0)
         elif d.fourCC == 'GPSF':
             if d.data != GPSFIX:
-                print("GPSFIX change to %s [%s]" % (d.data, fourCC.LabelGPSF.xlate[d.data]))
+                logger.debug("GPSFIX change to %s [%s]" % (d.data, fourCC.LabelGPSF.xlate[d.data]))
             GPSFIX = d.data
         elif d.fourCC == 'GPS5':
             # we have to use the REPEAT value.
@@ -70,14 +72,14 @@ def BuildGPSPoints(data, skip=False):
             for item in d.data:
 
                 if item.lon == item.lat == item.alt == 0:
-                    print("Warning: Skipping empty point")
+                    logger.warning("Warning: Skipping empty point")
                     stats['empty'] += 1
                     continue
 
                 if GPSFIX == 0:
                     stats['badfix'] += 1
                     if skip:
-                        print("Warning: Skipping point due GPSFIX==0")
+                        logger.warning("Warning: Skipping point due GPSFIX==0")
                         stats['badfixskip'] += 1
                         continue
 
@@ -100,14 +102,14 @@ def BuildGPSPoints(data, skip=False):
             # KARMA GPRI info
 
             if d.data.lon == d.data.lat == d.data.alt == 0:
-                print("Warning: Skipping empty point")
+                logger.warning("Warning: Skipping empty point")
                 stats['empty'] += 1
                 continue
 
             if GPSFIX == 0:
                 stats['badfix'] += 1
                 if skip:
-                    print("Warning: Skipping point due GPSFIX==0")
+                    logger.warning("Warning: Skipping point due GPSFIX==0")
                     stats['badfixskip'] += 1
                     continue
 
@@ -120,15 +122,15 @@ def BuildGPSPoints(data, skip=False):
                 points.append(p)
                 stats['ok'] += 1
 
-    print("-- stats -----------------")
+    logger.info("-- stats -----------------")
     total_points = 0
     for i in stats.keys():
         total_points += stats[i]
-    print("- Ok:              %5d" % stats['ok'])
-    print("- GPSFIX=0 (bad):  %5d (skipped: %d)" % (stats['badfix'], stats['badfixskip']))
-    print("- Empty (No data): %5d" % stats['empty'])
-    print("Total points:      %5d" % total_points)
-    print("--------------------------")
+    logger.info("- Ok:              %5d" % stats['ok'])
+    logger.info("- GPSFIX=0 (bad):  %5d (skipped: %d)" % (stats['badfix'], stats['badfixskip']))
+    logger.info("- Empty (No data): %5d" % stats['empty'])
+    logger.info("Total points:      %5d" % total_points)
+    logger.info("--------------------------")
     return (points)
 
 
