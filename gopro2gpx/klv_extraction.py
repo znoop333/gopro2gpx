@@ -17,7 +17,6 @@ from av.video.stream import VideoStream
 from scipy.spatial.transform import Rotation as R
 import gpshelper
 
-logger = logging.getLogger(__name__)
 
 
 def parseStream(data_raw):
@@ -29,6 +28,7 @@ def parseStream(data_raw):
 
     offset = 0
     klvlist = []
+    logger = logging.getLogger(__name__)
 
     while offset < len(data):
 
@@ -39,14 +39,13 @@ def parseStream(data_raw):
 
         if not klv.skip():
             klvlist.append(klv)
-            # if klv.fourCC=="STNM":
-            # print(klv)
+            if klv.fourCC == "STNM":
+                logger.debug(klv)
         else:
             if klv:
-                print("Warning, skipping klv", klv)
+                logger.warning(f"Warning, skipping klv {klv}")
             else:
-                # unknown label
-                pass
+                logger.warning(f"Warning, unknown label!")
 
         offset += 8
         if klv.type != 0:
@@ -65,9 +64,12 @@ def read_video(args):
     unread_bytes = bytes()
     all_points = []
 
+    logger = logging.getLogger(__name__)
+
+    logger.info(f'Opening video file {str(source)}')
     with av.open(str(source)) as container:
         n_frames = container.streams.video[0].frames
-        print(f'Frame count: {n_frames}')
+        logger.debug(f'Frame count: {n_frames}')
         frame_info = {
             'index': np.zeros(n_frames),
             'gps_time': np.zeros(n_frames, dtype='datetime64[us]'),
@@ -200,6 +202,8 @@ def read_video(args):
         for k in frame_info:
             frame_info[k] = frame_info[k][:frame_count]
 
+    logger.info(f'Finished reading {frame_count} frames from {str(source)}')
+
     # interpret the quaternions
     qn_iori = [R.from_quat([p.qw, p.qx, p.qy, p.qz]) for p in iori]
     qn_cori = [R.from_quat([p.qw, p.qx, p.qy, p.qz]) for p in cori]
@@ -227,10 +231,12 @@ def read_video(args):
     frame_info['img_rel_roll'] = rel_iori[:, 2]
 
     # save in Matlab format
+    logger.info(f'Writing .MAT file: {str(args.output_mat_file)}')
     savemat(str(args.output_mat_file), frame_info)
 
     if args.output_full_csv:
         # save the full metadata as a CSV just in case somebody wants that for another (non-Matlab program)
+        logger.info(f'Writing full .CSV file: {str(args.output_full_csv)}')
         with args.output_full_csv.open('w', newline='') as csvfile:
             fieldnames = frame_info.keys()
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, dialect="excel")
@@ -257,6 +263,7 @@ IMG_3165.JPG,46.2345612,6.5611445,539.931234
 IMG_3166.JPG,46.2323423,6.5623423,529.823423
     """
     if args.output_pix4d_csv:
+        logger.info(f'Writing PIX4D .CSV file: {str(args.output_pix4d_csv)}')
         with args.output_pix4d_csv.open('w', newline='') as csvfile:
             fieldnames = ['imagename', 'latitude', 'longitude', 'altitude']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quoting=csv.QUOTE_NONE)
@@ -277,15 +284,14 @@ IMG_3166.JPG,46.2323423,6.5623423,529.823423
                 )
 
     if args.output_kml:
+        logger.info(f'Writing .KML file: {str(args.output_kml)}')
         kml = gpshelper.generate_KML(all_points)
         with args.output_kml.open("w+") as fd:
             fd.write(kml)
 
 
-
 def parseArgs():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-v", "--verbose", help="increase output verbosity", action="count")
     parser.add_argument("-k", "--output_kml", nargs='?', type=Path, help="output KML filename (optional)")
     parser.add_argument("-f", "--output_full_csv", nargs='?', type=Path,
                         help="output filename for full metadata CSV (optional)")
@@ -293,8 +299,11 @@ def parseArgs():
                         help="output filename for metadata CSV in PIX4D format (optional)")
     parser.add_argument("-n", "--max_frames", nargs='?', type=int, help="stop after processing N frames (optional)")
     parser.add_argument("-s", "--skip", help="Skip bad points (GPSFIX=0)", action="store_true", default=False)
+    parser.add_argument('-l', '--loglevel', default='warning',
+                        help='Provide logging level. Example --loglevel debug')
     parser.add_argument("video_file", help="GoPro Video file (.mp4)", type=Path)
     parser.add_argument("output_mat_file", help="output metadata .MAT file", type=Path)
+
     # parser.print_help()
     args = parser.parse_args()
 
@@ -303,7 +312,10 @@ def parseArgs():
 
 def main():
     args = parseArgs()
+    logging.basicConfig(level=args.loglevel.upper())
+    logger = logging.getLogger(__name__)
     read_video(args)
+    logger.info(f'Finished working on {str(args.video_file)}. Exiting')
 
 
 if __name__ == "__main__":
