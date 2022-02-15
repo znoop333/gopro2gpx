@@ -285,6 +285,9 @@ IMG_3166.JPG,46.2323423,6.5623423,529.823423
 
     if args.output_kml:
         logger.info(f'Writing .KML file: {str(args.output_kml)}')
+        # oops, these altitudes don't seem to work right in Google Earth, so I'm going to set them all to 0
+        for ii in range(len(all_points)):
+            all_points[ii].elevation = 0
         kml = gpshelper.generate_KML(all_points)
         with args.output_kml.open("w+") as fd:
             fd.write(kml)
