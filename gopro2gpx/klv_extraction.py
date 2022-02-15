@@ -1,5 +1,7 @@
+import argparse
 import array
 import logging
+import sys
 from pathlib import Path
 import av
 from klvdata import KLVData
@@ -13,6 +15,7 @@ import math
 from av.data.stream import DataStream
 from av.video.stream import VideoStream
 from scipy.spatial.transform import Rotation as R
+import gpshelper
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +39,8 @@ def parseStream(data_raw):
 
         if not klv.skip():
             klvlist.append(klv)
-            #if klv.fourCC=="STNM":
-            #print(klv)
+            # if klv.fourCC=="STNM":
+            # print(klv)
         else:
             if klv:
                 print("Warning, skipping klv", klv)
@@ -54,10 +57,13 @@ def parseStream(data_raw):
     return klvlist, bytes()
 
 
-def read_video(source: Path, dest: Path, max_frames: int = None):
+def read_video(args):
+    source = args.video_file
+    max_frames = args.max_frames
     frame_count = 0
     last_frame = 0
     unread_bytes = bytes()
+    all_points = []
 
     with av.open(str(source)) as container:
         n_frames = container.streams.video[0].frames
@@ -144,7 +150,8 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
 
                 packet_data = packet.to_bytes()
                 klv, unread_bytes = parseStream(unread_bytes + packet_data)
-                points = BuildGPSPoints(klv)
+                points = BuildGPSPoints(klv, skip=args.skip)
+                all_points.extend(points)
                 points_CORI, points_IORI = BuildOrientations(klv)
                 cori.extend(points_CORI)
                 iori.extend(points_IORI)
@@ -203,7 +210,8 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
     # the initial GoPro pose is set when the device is powered on, and all quaternions are relative to that.
     # but since I cannot know that initial pose (most GoPros do not have a magnetometer), I'm going to
     # save the Euler angles relative to that initial pose
-    rel_net_angles = np.array([(qn_net[ii]*qn_net[0].inv()).as_euler('yxz', degrees=True) for ii in range(frame_count)])
+    rel_net_angles = np.array(
+        [(qn_net[ii] * qn_net[0].inv()).as_euler('yxz', degrees=True) for ii in range(frame_count)])
     frame_info['rel_net_az'] = rel_net_angles[:, 0]
     frame_info['rel_net_tilt'] = rel_net_angles[:, 1]
     frame_info['rel_net_roll'] = rel_net_angles[:, 2]
@@ -219,18 +227,19 @@ def read_video(source: Path, dest: Path, max_frames: int = None):
     frame_info['img_rel_roll'] = rel_iori[:, 2]
 
     # save in Matlab format
-    savemat("metadata.mat", frame_info)
+    savemat(str(args.output_mat_file), frame_info)
 
-    # save the full metadata as a CSV just in case somebody wants that for another (non-Matlab program)
-    with open('metadata_full.csv', 'w', newline='') as csvfile:
-        fieldnames = frame_info.keys()
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, dialect="excel")
-        writer.writeheader()
+    if args.output_full_csv:
+        # save the full metadata as a CSV just in case somebody wants that for another (non-Matlab program)
+        with args.output_full_csv.open('w', newline='') as csvfile:
+            fieldnames = frame_info.keys()
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, dialect="excel")
+            writer.writeheader()
 
-        # from dict of lists to list of dicts
-        rows = [{k: v[ii] for k, v in frame_info.items()} for ii in range(frame_count)]
-        for ii in range(frame_count):
-            writer.writerow(rows[ii])
+            # from dict of lists to list of dicts
+            rows = [{k: v[ii] for k, v in frame_info.items()} for ii in range(frame_count)]
+            for ii in range(frame_count):
+                writer.writerow(rows[ii])
 
     """
 write the CSV for PIX4D to use (Image geolocation file)
@@ -247,26 +256,55 @@ Example:
 IMG_3165.JPG,46.2345612,6.5611445,539.931234
 IMG_3166.JPG,46.2323423,6.5623423,529.823423
     """
-    with open('metadata_pix4d.csv', 'w', newline='') as csvfile:
-        fieldnames = ['imagename', 'latitude', 'longitude', 'altitude']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quoting=csv.QUOTE_NONE)
-        writer.writeheader()
+    if args.output_pix4d_csv:
+        with args.output_pix4d_csv.open('w', newline='') as csvfile:
+            fieldnames = ['imagename', 'latitude', 'longitude', 'altitude']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=',', quoting=csv.QUOTE_NONE)
+            writer.writeheader()
 
-        # determine how many prefix zeros will be required to keep these files in order
-        n_digits_required = math.ceil(math.log10(frame_count))
+            # determine how many prefix zeros will be required to keep these files in order
+            n_digits_required = math.ceil(math.log10(frame_count))
 
-        for ii in range(frame_count):
-            index = int(frame_info["index"][ii] + 1)  # does PIX4D count frames from 0 or 1? I guess 1
-            index_str = str(index).zfill(n_digits_required)
-            writer.writerow(
-                {'imagename': f'IMG_{index_str}.JPG',
-                 'latitude': frame_info['latitude'][ii],
-                 'longitude': frame_info['longitude'][ii],
-                 'altitude': frame_info['elevation'][ii]
-                 }
-            )
+            for ii in range(frame_count):
+                index = int(frame_info["index"][ii] + 1)  # does PIX4D count frames from 0 or 1? I guess 1
+                index_str = str(index).zfill(n_digits_required)
+                writer.writerow(
+                    {'imagename': f'IMG_{index_str}.JPG',
+                     'latitude': frame_info['latitude'][ii],
+                     'longitude': frame_info['longitude'][ii],
+                     'altitude': frame_info['elevation'][ii]
+                     }
+                )
+
+    if args.output_kml:
+        kml = gpshelper.generate_KML(all_points)
+        with args.output_kml.open("w+") as fd:
+            fd.write(kml)
+
+
+
+def parseArgs():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", help="increase output verbosity", action="count")
+    parser.add_argument("-k", "--output_kml", nargs='?', type=Path, help="output KML filename (optional)")
+    parser.add_argument("-f", "--output_full_csv", nargs='?', type=Path,
+                        help="output filename for full metadata CSV (optional)")
+    parser.add_argument("-p", "--output_pix4d_csv", nargs='?', type=Path,
+                        help="output filename for metadata CSV in PIX4D format (optional)")
+    parser.add_argument("-n", "--max_frames", nargs='?', type=int, help="stop after processing N frames (optional)")
+    parser.add_argument("-s", "--skip", help="Skip bad points (GPSFIX=0)", action="store_true", default=False)
+    parser.add_argument("video_file", help="GoPro Video file (.mp4)", type=Path)
+    parser.add_argument("output_mat_file", help="output metadata .MAT file", type=Path)
+    # parser.print_help()
+    args = parser.parse_args()
+
+    return args
+
+
+def main():
+    args = parseArgs()
+    read_video(args)
 
 
 if __name__ == "__main__":
-    #read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"), 50)
-    read_video(Path(r"D:\djohnson\gopro\GH010198.MP4"), Path(r"D:\djohnson\gopro\frames"))
+    main()
