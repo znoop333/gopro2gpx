@@ -6,6 +6,19 @@ Please note this differs from gopro2gpx.py: the metadata is directly read from t
 
 The outputs file formats are also different: a Matlab-compatible .MAT file is the primary output, and optional CSV files are generated for use with PIX4D or other programs.
 
+# Installation
+
+Install Anaconda from https://www.anaconda.com/products/individual
+
+In Anaconda Prompt, run:
+* conda create -y -n klv_extraction -c conda-forge   python scipy numpy av pillow
+* conda activate gpparser
+* pip install git+https://github.com/znoop333/gopro2gpx@master
+
+# Launch Matlab from Conda environment
+
+This is very important! Matlab will not find the correct python.exe in PATH unless the conda environment is activated first!
+
 # Arguments and options
 
 ```

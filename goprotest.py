@@ -1,5 +1,5 @@
 import gopro2gpx
 
 if __name__ == '__main__':
-    gopro2gpx.gopro2gpx.main()
+    gopro2gpx.klv_extraction.main()
 

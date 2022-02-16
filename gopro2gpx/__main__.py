@@ -1,3 +1,3 @@
-from .gopro2gpx import main
+from .klv_extraction import main
 
 main()
