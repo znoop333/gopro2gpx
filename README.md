@@ -12,7 +12,7 @@ Install Anaconda from https://www.anaconda.com/products/individual
 
 In Anaconda Prompt, run:
 * conda create -y -n klv_extraction -c conda-forge   python scipy numpy av pillow
-* conda activate gpparser
+* conda activate klv_extraction
 * pip install git+https://github.com/znoop333/gopro2gpx@master
 
 # Launch Matlab from Conda environment
