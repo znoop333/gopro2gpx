@@ -30,7 +30,7 @@ positional arguments:
   output_mat_file       output metadata .MAT file
 options:
   -h, --help            show this help message and exit
-  -v, --verbose         increase output verbosity
+  -l, --loglevel        Provide logging level. Example --loglevel debug or --loglevel warning
   -k [OUTPUT_KML], --output_kml [OUTPUT_KML]
                         output KML filename (optional)
   -f [OUTPUT_FULL_CSV], --output_full_csv [OUTPUT_FULL_CSV]
