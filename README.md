@@ -11,7 +11,7 @@ The outputs file formats are also different: a Matlab-compatible .MAT file is th
 Install Anaconda from https://www.anaconda.com/products/individual
 
 In Anaconda Prompt, run:
-* conda create -y -n klv_extraction -c conda-forge   python scipy numpy av pillow
+* conda create -y -n klv_extraction -c conda-forge -c anaconda    python scipy numpy av pillow git pip
 * conda activate klv_extraction
 * pip install git+https://github.com/znoop333/gopro2gpx@master
 
