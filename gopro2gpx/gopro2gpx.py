@@ -24,10 +24,10 @@ import logging
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from config import setup_environment
-import fourCC
-import gpmf
-import gpshelper
+from .config import setup_environment
+from . import fourCC
+from . import gpmf
+from . import gpshelper
 
 
 def BuildGPSPoints(data, skip=False):

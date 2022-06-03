@@ -4,18 +4,18 @@ import logging
 import sys
 from pathlib import Path
 import av
-from klvdata import KLVData
+from .klvdata import KLVData
 import numpy as np
 from scipy.io import savemat
 from datetime import datetime, timedelta
-from gopro2gpx import BuildGPSPoints, BuildOrientations
-from np_datetime_conv import interp_time_array
+from gopro2gpx.gopro2gpx import BuildGPSPoints, BuildOrientations
+from .np_datetime_conv import interp_time_array
 import csv
 import math
 from av.data.stream import DataStream
 from av.video.stream import VideoStream
 from scipy.spatial.transform import Rotation as R
-import gpshelper
+from . import gpshelper
 
 
 

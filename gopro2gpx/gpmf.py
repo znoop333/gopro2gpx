@@ -17,8 +17,8 @@ import os
 import struct
 import sys
 
-from ffmpegtools import FFMpegTools
-from klvdata import KLVData
+from .ffmpegtools import FFMpegTools
+from .klvdata import KLVData
 
 
 class Parser:
