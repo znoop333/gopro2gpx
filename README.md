@@ -22,12 +22,13 @@ This is very important! Matlab will not find the correct python.exe in PATH unle
 # Arguments and options
 
 ```
-usage: klv_extraction.py [-h] [-v] [-k [OUTPUT_KML]] [-f [OUTPUT_FULL_CSV]]
-                    [-p [OUTPUT_PIX4D_CSV]] [-n [MAX_FRAMES]] [-s]
-                    video_file output_mat_file
+usage: 
+python -c "from gopro2gpx.klv_extraction import main; main()" [-h] [-v] [-k [OUTPUT_KML]] [-f [OUTPUT_FULL_CSV]]
+                    [-p [OUTPUT_PIX4D_CSV]] [-n [MAX_FRAMES]] [-s] [-m [output_mat_file]]
+                    video_file 
+
 positional arguments:
   video_file            GoPro Video file (.mp4)
-  output_mat_file       output metadata .MAT file
 options:
   -h, --help            show this help message and exit
   -l, --loglevel        Provide logging level. Example --loglevel debug or --loglevel warning
@@ -40,8 +41,20 @@ options:
                         (optional)
   -n [MAX_FRAMES], --max_frames [MAX_FRAMES]
                         stop after processing N frames (optional)
+  -m output_mat_file    output metadata .MAT file in Matlab HDF5 format
   -s, --skip            Skip bad points (GPSFIX=0)
 ```  
+
+# Example of running this script to create a CSV file
+
+```  
+For example, if the video file was in "D:\data\GH010198.MP4", you can run a command like this:
+
+conda activate klv_extraction
+cd /d D:\data
+python -c "from gopro2gpx.klv_extraction import main; main()" -f GH010198.csv GH010198.MP4 GH010198.mat
+```  
+
 
 
 

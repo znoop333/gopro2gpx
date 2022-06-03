@@ -8,7 +8,7 @@
 
 import struct
 
-import gopro2gpx.fourCC
+from . import fourCC
 
 
 class KLVData:

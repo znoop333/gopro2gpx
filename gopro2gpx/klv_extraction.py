@@ -97,7 +97,7 @@ def read_video(args):
                 gpmf_ix = ix
                 break
         if gpmf_ix == -1:
-            raise f'GoPro Metadata stream not found in {source}'
+            raise Exception(f'GoPro Metadata stream not found in {str(source)}')
 
         for packet_index, packet in enumerate(container.demux()):
 
@@ -231,8 +231,13 @@ def read_video(args):
     frame_info['img_rel_roll'] = rel_iori[:, 2]
 
     # save in Matlab format
+    if args.output_mat_file is None:
+        args.output_mat_file = args.video_file.with_suffix(".mat")
     logger.info(f'Writing .MAT file: {str(args.output_mat_file)}')
     savemat(str(args.output_mat_file), frame_info)
+
+    if args.output_full_csv is None:
+        args.output_full_csv = args.video_file.with_suffix(".csv")
 
     if args.output_full_csv:
         # save the full metadata as a CSV just in case somebody wants that for another (non-Matlab program)
@@ -304,8 +309,8 @@ def parseArgs():
     parser.add_argument("-s", "--skip", help="Skip bad points (GPSFIX=0)", action="store_true", default=False)
     parser.add_argument('-l', '--loglevel', default='warning',
                         help='Provide logging level. Example --loglevel debug')
+    parser.add_argument("-m", "--output_mat_file", help="output metadata .MAT file (optional)", type=Path)
     parser.add_argument("video_file", help="GoPro Video file (.mp4)", type=Path)
-    parser.add_argument("output_mat_file", help="output metadata .MAT file", type=Path)
 
     # parser.print_help()
     args = parser.parse_args()
