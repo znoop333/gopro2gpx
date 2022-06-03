@@ -267,6 +267,9 @@ Example:
 IMG_3165.JPG,46.2345612,6.5611445,539.931234
 IMG_3166.JPG,46.2323423,6.5623423,529.823423
     """
+    if args.output_pix4d_csv is None:
+        args.output_pix4d_csv = args.video_file.with_name(args.video_file.stem + "_pix4d.csv")
+
     if args.output_pix4d_csv:
         logger.info(f'Writing PIX4D .CSV file: {str(args.output_pix4d_csv)}')
         with args.output_pix4d_csv.open('w', newline='') as csvfile:
@@ -288,6 +291,9 @@ IMG_3166.JPG,46.2323423,6.5623423,529.823423
                      }
                 )
 
+    if args.output_kml is None:
+        args.output_kml = args.video_file.with_suffix(".kml")
+
     if args.output_kml:
         logger.info(f'Writing .KML file: {str(args.output_kml)}')
         # oops, these altitudes don't seem to work right in Google Earth, so I'm going to set them all to 0
@@ -307,7 +313,7 @@ def parseArgs():
                         help="output filename for metadata CSV in PIX4D format (optional)")
     parser.add_argument("-n", "--max_frames", nargs='?', type=int, help="stop after processing N frames (optional)")
     parser.add_argument("-s", "--skip", help="Skip bad points (GPSFIX=0)", action="store_true", default=False)
-    parser.add_argument('-l', '--loglevel', default='warning',
+    parser.add_argument('-l', '--loglevel', default='info',
                         help='Provide logging level. Example --loglevel debug')
     parser.add_argument("-m", "--output_mat_file", help="output metadata .MAT file (optional)", type=Path)
     parser.add_argument("video_file", help="GoPro Video file (.mp4)", type=Path)
