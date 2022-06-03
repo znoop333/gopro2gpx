@@ -52,7 +52,7 @@ For example, if the video file was in "D:\data\GH010198.MP4", you can run a comm
 
 conda activate klv_extraction
 cd /d D:\data
-python -c "from gopro2gpx.klv_extraction import main; main()" -f GH010198.csv GH010198.MP4 GH010198.mat
+python -c "from gopro2gpx.klv_extraction import main; main()" GH010198.MP4 
 ```  
 
 
